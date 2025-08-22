@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Number Chat</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #chat-app {
+      width: 400px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    #chat-number {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-bottom: 10px;
+      height: 300px;
+      background: #fafafa;
+    }
+    #messages div {
+      margin-bottom: 5px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 2px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+<div id="chat-app">
+  <div>
+    <label>Chat Number: </label>
+    <input type="text" id="numberInput" />
+    <button onclick="setChatNumber()">Join</button>
+  </div>
+  <div id="chat-number"></div>
+  <div id="messages"></div>
+  <div>
+    <input type="text" id="msgInput" placeholder="Type a message..." style="width: 75%;">
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+let chatNumber = Math.floor(100000 + Math.random() * 900000).toString();
+let fileId = null;
+let pollInterval = null;
+
+// Initialize
+document.getElementById("numberInput").value = chatNumber;
+setChatNumber();
+
+function setChatNumber() {
+  chatNumber = document.getElementById("numberInput").value.trim();
+  document.getElementById("chat-number").innerText = "Connected to #" + chatNumber;
+  fileId = "chat_" + chatNumber;
+
+  // Start polling for messages
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(fetchMessages, 3000);
+  fetchMessages();
+}
+
+async function fetchMessages() {
+  try {
+    const res = await fetch("https://pixeldrain.com/api/file/" + fileId);
+    if (res.ok) {
+      const data = await res.text();
+      renderMessages(data);
+    }
+  } catch (err) {
+    console.log("No chat yet...");
+  }
+}
+
+function renderMessages(data) {
+  const msgBox = document.getElementById("messages");
+  msgBox.innerHTML = "";
+  const lines = data.split("\n").filter(x => x.trim() !== "");
+  lines.forEach(line => {
+    const div = document.createElement("div");
+    div.textContent = line;
+    msgBox.appendChild(div);
+  });
+  msgBox.scrollTop = msgBox.scrollHeight;
+}
+
+async function sendMessage() {
+  const msg = document.getElementById("msgInput").value.trim();
+  if (!msg) return;
+
+  // Append new message
+  let existing = "";
+  try {
+    const res = await fetch("https://pixeldrain.com/api/file/" + fileId);
+    if (res.ok) existing = await res.text();
+  } catch (e) {}
+
+  const updated = (existing + "\n" + msg).trim();
+
+  await fetch("https://pixeldrain.com/api/file", {
+    method: "POST",
+    body: updated,
+    headers: { "Content-Type": "text/plain", "X-Filename": fileId }
+  });
+
+  document.getElementById("msgInput").value = "";
+  fetchMessages();
+}
+</script>
+</body>
+</html>
