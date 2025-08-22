@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Simple Number Chat</title>
+  <title>Number Chat</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -73,41 +73,61 @@
 
 <script>
 let chatNumber = Math.floor(100000 + Math.random() * 900000).toString();
-let fileId = null;
 let pollInterval = null;
+const API_KEY = "$2a$10$JMTp6qUSO6un7MHaOooepum9.jGrxXHtT/1eF1lJxozoZ2OYLLwlS"; // 👈 put your jsonbin.io key here
+let binId = null; // will hold bin id for each chat room
 
-// Initialize
+// init
 document.getElementById("numberInput").value = chatNumber;
 setChatNumber();
 
-function setChatNumber() {
+async function setChatNumber() {
   chatNumber = document.getElementById("numberInput").value.trim();
   document.getElementById("chat-number").innerText = "Connected to #" + chatNumber;
-  fileId = "chat_" + chatNumber;
 
-  // Start polling for messages
+  // Create or load JSON bin for this chat number
+  const binRes = await fetch(`https://api.jsonbin.io/v3/b/${chatNumber}`, {
+    headers: { "X-Master-Key": API_KEY }
+  });
+
+  if (binRes.status === 200) {
+    const data = await binRes.json();
+    binId = chatNumber;
+    renderMessages(data.record.messages || []);
+  } else {
+    // create new bin
+    const createRes = await fetch("https://api.jsonbin.io/v3/b", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": API_KEY,
+        "X-Bin-Name": chatNumber
+      },
+      body: JSON.stringify({ messages: [] })
+    });
+    const data = await createRes.json();
+    binId = data.metadata.id;
+  }
+
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(fetchMessages, 3000);
-  fetchMessages();
 }
 
 async function fetchMessages() {
-  try {
-    const res = await fetch("https://pixeldrain.com/api/file/" + fileId);
-    if (res.ok) {
-      const data = await res.text();
-      renderMessages(data);
-    }
-  } catch (err) {
-    console.log("No chat yet...");
+  if (!binId) return;
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+    headers: { "X-Master-Key": API_KEY }
+  });
+  if (res.ok) {
+    const data = await res.json();
+    renderMessages(data.record.messages || []);
   }
 }
 
-function renderMessages(data) {
+function renderMessages(msgs) {
   const msgBox = document.getElementById("messages");
   msgBox.innerHTML = "";
-  const lines = data.split("\n").filter(x => x.trim() !== "");
-  lines.forEach(line => {
+  msgs.forEach(line => {
     const div = document.createElement("div");
     div.textContent = line;
     msgBox.appendChild(div);
@@ -117,25 +137,28 @@ function renderMessages(data) {
 
 async function sendMessage() {
   const msg = document.getElementById("msgInput").value.trim();
-  if (!msg) return;
+  if (!msg || !binId) return;
 
-  // Append new message
-  let existing = "";
-  try {
-    const res = await fetch("https://pixeldrain.com/api/file/" + fileId);
-    if (res.ok) existing = await res.text();
-  } catch (e) {}
+  // get latest
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+    headers: { "X-Master-Key": API_KEY }
+  });
+  const data = await res.json();
+  const messages = data.record.messages || [];
+  messages.push(msg);
 
-  const updated = (existing + "\n" + msg).trim();
-
-  await fetch("https://pixeldrain.com/api/file", {
-    method: "POST",
-    body: updated,
-    headers: { "Content-Type": "text/plain", "X-Filename": fileId }
+  // update bin
+  await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": API_KEY
+    },
+    body: JSON.stringify({ messages })
   });
 
   document.getElementById("msgInput").value = "";
-  fetchMessages();
+  renderMessages(messages);
 }
 </script>
 </body>
