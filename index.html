@@ -35,9 +35,7 @@
 
 <script>
 let chatNumber = Math.floor(100000 + Math.random() * 900000).toString();
-
 document.getElementById("numberInput").value = chatNumber;
-setChatNumber();
 
 function setChatNumber() {
   chatNumber = document.getElementById("numberInput").value.trim();
@@ -71,6 +69,8 @@ function sendMessage() {
   document.getElementById("msgInput").value = "";
   renderMessages(data);
 }
+
+setChatNumber(); // start with random number
 </script>
 </body>
 </html>
